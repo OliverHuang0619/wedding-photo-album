@@ -1,0 +1,1375 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Oliver & Sherry's Love Story</title>
+    <style>
+            *,
+            *::before,
+            *::after
+            {
+                box-sizing: border-box;
+                margin: 0;
+                padding: 0;
+            }
+
+            html,
+            body
+            {
+                width: 100%;
+                height: 100%;
+            }
+
+            body
+            {
+                font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+                background: #000;
+                color: #fff;
+                overflow: hidden;
+            }
+
+            .photo-album
+            {
+                position: fixed;
+                inset: 0;
+                overflow: hidden;
+                background: transparent;
+                z-index: 3;
+            }
+
+            .photo
+            {
+                position: absolute;
+                inset: 0;
+                background-position: center center;
+                background-size: contain;
+                background-repeat: no-repeat;
+                background-color: #000;
+                opacity: 0;
+                transition: opacity 1s ease-in-out;
+            }
+
+            .photo.active
+            {
+                opacity: 1;
+            }
+
+            @keyframes fadeZoom
+            {
+                from
+                {
+                    transform: scale(1.03);
+                    opacity: 0;
+                }
+                to
+                {
+                    transform: scale(1);
+                    opacity: 1;
+                }
+            }
+
+            @keyframes slideLeft
+            {
+                from
+                {
+                    transform: translateX(40px);
+                    opacity: 0;
+                }
+                to
+                {
+                    transform: translateX(0);
+                    opacity: 1;
+                }
+            }
+
+            @keyframes slideRight
+            {
+                from
+                {
+                    transform: translateX(-40px);
+                    opacity: 0;
+                }
+                to
+                {
+                    transform: translateX(0);
+                    opacity: 1;
+                }
+            }
+
+            @keyframes fadeRotate
+            {
+                from
+                {
+                    transform: scale(1.02) rotate(1deg);
+                    opacity: 0;
+                }
+                to
+                {
+                    transform: scale(1) rotate(0deg);
+                    opacity: 1;
+                }
+            }
+
+            @keyframes slideUp
+            {
+                from
+                {
+                    transform: translateY(40px);
+                    opacity: 0;
+                }
+                to
+                {
+                    transform: translateY(0);
+                    opacity: 1;
+                }
+            }
+
+            @keyframes slideDown
+            {
+                from
+                {
+                    transform: translateY(-40px);
+                    opacity: 0;
+                }
+                to
+                {
+                    transform: translateY(0);
+                    opacity: 1;
+                }
+            }
+
+            @keyframes zoomInSoft
+            {
+                from
+                {
+                    transform: scale(0.97);
+                    opacity: 0;
+                }
+                to
+                {
+                    transform: scale(1);
+                    opacity: 1;
+                }
+            }
+
+            @keyframes zoomOutSoft
+            {
+                from
+                {
+                    transform: scale(1.05);
+                    opacity: 0;
+                }
+                to
+                {
+                    transform: scale(1);
+                    opacity: 1;
+                }
+            }
+
+            @keyframes blurIn
+            {
+                from
+                {
+                    filter: blur(10px);
+                    opacity: 0;
+                }
+                to
+                {
+                    filter: blur(0);
+                    opacity: 1;
+                }
+            }
+
+            @keyframes panLeft
+            {
+                from
+                {
+                    transform: translateX(15px) scale(1.02);
+                    opacity: 0;
+                }
+                to
+                {
+                    transform: translateX(0) scale(1);
+                    opacity: 1;
+                }
+            }
+
+            @keyframes panRight
+            {
+                from
+                {
+                    transform: translateX(-15px) scale(1.02);
+                    opacity: 0;
+                }
+                to
+                {
+                    transform: translateX(0) scale(1);
+                    opacity: 1;
+                }
+            }
+
+            @keyframes panUp
+            {
+                from
+                {
+                    transform: translateY(15px) scale(1.02);
+                    opacity: 0;
+                }
+                to
+                {
+                    transform: translateY(0) scale(1);
+                    opacity: 1;
+                }
+            }
+
+            @keyframes panDown
+            {
+                from
+                {
+                    transform: translateY(-15px) scale(1.02);
+                    opacity: 0;
+                }
+                to
+                {
+                    transform: translateY(0) scale(1);
+                    opacity: 1;
+                }
+            }
+
+            @keyframes rotateYSoft
+            {
+                from
+                {
+                    transform: rotateY(8deg);
+                    opacity: 0;
+                }
+                to
+                {
+                    transform: rotateY(0deg);
+                    opacity: 1;
+                }
+            }
+
+            @keyframes rotateXSoft
+            {
+                from
+                {
+                    transform: rotateX(8deg);
+                    opacity: 0;
+                }
+                to
+                {
+                    transform: rotateX(0deg);
+                    opacity: 1;
+                }
+            }
+
+            @keyframes tiltLeft
+            {
+                from
+                {
+                    transform: rotate(-2deg) scale(1.03);
+                    opacity: 0;
+                }
+                to
+                {
+                    transform: rotate(0deg) scale(1);
+                    opacity: 1;
+                }
+            }
+
+            @keyframes tiltRight
+            {
+                from
+                {
+                    transform: rotate(2deg) scale(1.03);
+                    opacity: 0;
+                }
+                to
+                {
+                    transform: rotate(0deg) scale(1);
+                    opacity: 1;
+                }
+            }
+
+            @keyframes fadeLong
+            {
+                from
+                {
+                    opacity: 0;
+                }
+                to
+                {
+                    opacity: 1;
+                }
+            }
+
+            @keyframes zoomRotate
+            {
+                from
+                {
+                    transform: scale(1.05) rotate(-1.5deg);
+                    opacity: 0;
+                }
+                to
+                {
+                    transform: scale(1) rotate(0deg);
+                    opacity: 1;
+                }
+            }
+
+            @keyframes subtleShake
+            {
+                0%
+                {
+                    transform: translateX(4px);
+                }
+                25%
+                {
+                    transform: translateX(-3px);
+                }
+                50%
+                {
+                    transform: translateX(2px);
+                }
+                75%
+                {
+                    transform: translateX(-1px);
+                }
+                100%
+                {
+                    transform: translateX(0);
+                }
+            }
+
+            .photo.effect-zoom
+            {
+                animation: fadeZoom 1.2s ease-out;
+            }
+
+            .photo.effect-slide-left
+            {
+                animation: slideLeft 1s ease-out;
+            }
+
+            .photo.effect-slide-right
+            {
+                animation: slideRight 1s ease-out;
+            }
+
+            .photo.effect-rotate
+            {
+                animation: fadeRotate 1.2s ease-out;
+            }
+
+            .photo.effect-slide-up
+            {
+                animation: slideUp 1s ease-out;
+            }
+
+            .photo.effect-slide-down
+            {
+                animation: slideDown 1s ease-out;
+            }
+
+            .photo.effect-zoom-in-soft
+            {
+                animation: zoomInSoft 1.2s ease-out;
+            }
+
+            .photo.effect-zoom-out-soft
+            {
+                animation: zoomOutSoft 1.2s ease-out;
+            }
+
+            .photo.effect-blur-in
+            {
+                animation: blurIn 1.1s ease-out;
+            }
+
+            .photo.effect-pan-left
+            {
+                animation: panLeft 1.3s ease-out;
+            }
+
+            .photo.effect-pan-right
+            {
+                animation: panRight 1.3s ease-out;
+            }
+
+            .photo.effect-pan-up
+            {
+                animation: panUp 1.3s ease-out;
+            }
+
+            .photo.effect-pan-down
+            {
+                animation: panDown 1.3s ease-out;
+            }
+
+            .photo.effect-rotate-y
+            {
+                animation: rotateYSoft 1.1s ease-out;
+                transform-origin: center;
+            }
+
+            .photo.effect-rotate-x
+            {
+                animation: rotateXSoft 1.1s ease-out;
+                transform-origin: center;
+            }
+
+            .photo.effect-tilt-left
+            {
+                animation: tiltLeft 1.2s ease-out;
+            }
+
+            .photo.effect-tilt-right
+            {
+                animation: tiltRight 1.2s ease-out;
+            }
+
+            .photo.effect-fade-long
+            {
+                animation: fadeLong 1.6s ease-out;
+            }
+
+            .photo.effect-zoom-rotate
+            {
+                animation: zoomRotate 1.3s ease-out;
+            }
+
+            .photo.effect-subtle-shake
+            {
+                animation: fadeLong 0.8s ease-out, subtleShake 1.4s ease-out;
+            }
+
+            .controls
+            {
+                position: absolute;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                padding: 10px 16px;
+                background: linear-gradient(to top, rgba(0, 0, 0, 0.7), transparent);
+                font-size: 14px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                gap: 12px;
+                z-index: 10;
+                cursor: pointer;
+                user-select: none;
+            }
+
+            .controls span
+            {
+                opacity: 0.8;
+            }
+
+            .controls span.status
+            {
+                font-weight: 600;
+                opacity: 1;
+                display: none;
+            }
+
+            .loading-overlay
+            {
+                position: fixed;
+                inset: 0;
+                background: transparent;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                color: #fff;
+                font-size: 18px;
+                z-index: 20;
+                text-shadow: 0 0 8px rgba(0, 0, 0, 0.9);
+            }
+
+            .background-decor
+            {
+                position: fixed;
+                inset: 0;
+                background: radial-gradient(circle at top left, rgba(255, 192, 203, 0.25), transparent 55%),
+                    radial-gradient(circle at bottom right, rgba(135, 206, 235, 0.25), transparent 55%),
+                    radial-gradient(circle at center, rgba(255, 255, 255, 0.05), transparent 60%);
+                overflow: hidden;
+                z-index: 8;
+                pointer-events: none;
+            }
+
+            .decor-heart
+            {
+                position: absolute;
+                width: 26px;
+                height: 26px;
+                background: #ff6a88;
+                transform: rotate(-45deg);
+                transform-origin: center;
+                opacity: 0.85;
+                z-index: 2;
+                animation: floatHeart linear infinite;
+            }
+
+            .decor-heart::before,
+            .decor-heart::after
+            {
+                content: "";
+                position: absolute;
+                width: 26px;
+                height: 26px;
+                background: #ff6a88;
+                border-radius: 50%;
+            }
+
+            .decor-heart::before
+            {
+                top: -13px;
+                left: 0;
+            }
+
+            .decor-heart::after
+            {
+                left: 13px;
+                top: 0;
+            }
+
+            .decor-heart.small
+            {
+                transform: scale(0.7) rotate(-45deg);
+            }
+
+            .decor-heart.large
+            {
+                transform: scale(1.2) rotate(-45deg);
+            }
+
+            @keyframes floatHeart
+            {
+                from
+                {
+                    transform: translateY(40px) rotate(-45deg);
+                }
+                to
+                {
+                    transform: translateY(-120vh) rotate(-45deg);
+                }
+            }
+
+            .decor-heart.h1
+            {
+                left: 12%;
+                bottom: -10%;
+                animation-duration: 18s;
+            }
+
+            .decor-heart.h2
+            {
+                left: 28%;
+                bottom: -20%;
+                animation-duration: 22s;
+                animation-delay: -4s;
+            }
+
+            .decor-heart.h3
+            {
+                left: 46%;
+                bottom: -15%;
+                animation-duration: 20s;
+                animation-delay: -10s;
+            }
+
+            .decor-heart.h4
+            {
+                left: 64%;
+                bottom: -18%;
+                animation-duration: 24s;
+                animation-delay: -7s;
+            }
+
+            .decor-heart.h5
+            {
+                left: 82%;
+                bottom: -12%;
+                animation-duration: 19s;
+                animation-delay: -13s;
+            }
+
+            .decor-star
+            {
+                position: absolute;
+                width: 3px;
+                height: 3px;
+                border-radius: 50%;
+                background: radial-gradient(circle, #ffffff 0, rgba(255, 255, 255, 0.2) 60%, transparent 70%);
+                opacity: 0.35;
+                animation: starTwinkle ease-in-out infinite;
+            }
+
+            .decor-star.big
+            {
+                width: 5px;
+                height: 5px;
+                opacity: 0.6;
+            }
+
+            @keyframes starTwinkle
+            {
+                0%,
+                100%
+                {
+                    opacity: 0.2;
+                    transform: scale(1);
+                }
+                40%
+                {
+                    opacity: 0.8;
+                    transform: scale(1.5);
+                }
+                70%
+                {
+                    opacity: 0.5;
+                    transform: scale(1.2);
+                }
+            }
+
+            .decor-bokeh {}
+
+            .decor-flower
+            {
+                position: absolute;
+                width: 70px;
+                height: 140px;
+                transform-origin: center bottom;
+                z-index: 1;
+                animation: roseFloat 16s ease-in-out infinite;
+                display: none;
+            }
+
+            .decor-flower::before
+            {
+                content: none;
+            }
+
+            .decor-flower::after
+            {
+                content: none;
+            }
+
+            .decor-flower.small
+            {
+                transform: scale(0.7);
+                opacity: 0.9;
+            }
+
+            .decor-flower.large
+            {
+                transform: scale(1.15);
+                opacity: 1;
+            }
+
+            @keyframes roseFloat
+            {
+                0%
+                {
+                    transform: translate3d(0, 30px, 0) rotate(-4deg);
+                    opacity: 0;
+                }
+                25%
+                {
+                    transform: translate3d(6px, 10px, 0) rotate(1deg);
+                    opacity: 0.8;
+                }
+                50%
+                {
+                    transform: translate3d(-4px, -4px, 0) rotate(3deg);
+                    opacity: 1;
+                }
+                75%
+                {
+                    transform: translate3d(2px, -14px, 0) rotate(0deg);
+                    opacity: 0.85;
+                }
+                100%
+                {
+                    transform: translate3d(0, -26px, 0) rotate(-3deg);
+                    opacity: 0;
+                }
+            }
+
+            .decor-heart.pink,
+            .decor-heart.pink::before,
+            .decor-heart.pink::after
+            {
+                background: #ff8fb8;
+            }
+
+            .decor-heart.blue,
+            .decor-heart.blue::before,
+            .decor-heart.blue::after
+            {
+                background: #6bbcff;
+            }
+
+            .decor-bokeh-circle
+            {
+                position: absolute;
+                width: 80px;
+                height: 80px;
+                border-radius: 50%;
+                background: radial-gradient(circle, rgba(255, 255, 255, 0.35) 0, rgba(255, 255, 255, 0.08) 55%, transparent 70%);
+                mix-blend-mode: screen;
+                opacity: 0.28;
+                filter: blur(1px);
+                z-index: 0;
+                animation: bokehDrift 22s ease-in-out infinite;
+            }
+
+            .decor-bokeh-circle.small
+            {
+                width: 52px;
+                height: 52px;
+                opacity: 0.3;
+            }
+
+            .decor-bokeh-circle.large
+            {
+                width: 110px;
+                height: 110px;
+                opacity: 0.4;
+            }
+
+            @keyframes bokehDrift
+            {
+                0%
+                {
+                    transform: translate3d(-10px, 10px, 0) scale(0.9);
+                    opacity: 0.2;
+                }
+                30%
+                {
+                    transform: translate3d(10px, -6px, 0) scale(1);
+                    opacity: 0.55;
+                }
+                60%
+                {
+                    transform: translate3d(4px, -16px, 0) scale(1.1);
+                    opacity: 0.4;
+                }
+                100%
+                {
+                    transform: translate3d(-6px, -26px, 0) scale(0.95);
+                    opacity: 0.15;
+                }
+            }
+
+            .decor-firework
+            {
+                position: absolute;
+                width: 10px;
+                height: 10px;
+                border-radius: 50%;
+                box-shadow:
+                    0 0 0 0 rgba(255, 255, 255, 1),
+                    0 0 22px 6px rgba(255, 255, 255, 0.95);
+                transform: translate(-50%, -50%) scale(0.3);
+                opacity: 0;
+                z-index: 1;
+                pointer-events: none;
+                animation: fireworkBurst 1.2s ease-out forwards;
+            }
+
+            .decor-firework.color-pink
+            {
+                box-shadow:
+                    0 0 0 0 rgba(255, 210, 230, 0.95),
+                    0 0 18px 4px rgba(255, 120, 170, 0.95);
+            }
+
+            .decor-firework.color-gold
+            {
+                box-shadow:
+                    0 0 0 0 rgba(255, 245, 210, 0.95),
+                    0 0 18px 4px rgba(255, 220, 120, 0.95);
+            }
+
+            .decor-firework.color-blue
+            {
+                box-shadow:
+                    0 0 0 0 rgba(210, 235, 255, 0.95),
+                    0 0 18px 4px rgba(120, 190, 255, 0.95);
+            }
+
+            .decor-firework::before,
+            .decor-firework::after
+            {
+                content: "";
+                position: absolute;
+                inset: -26px;
+                border-radius: 50%;
+                border: 2px solid rgba(255, 255, 255, 0.6);
+                opacity: 0.5;
+                transform: scale(0.3);
+            }
+
+            .decor-firework::after
+            {
+                inset: -14px;
+                opacity: 0.8;
+            }
+
+            @keyframes fireworkBurst
+            {
+                0%
+                {
+                    transform: translate(-50%, -50%) scale(0.3);
+                    opacity: 0;
+                }
+                20%
+                {
+                    transform: translate(-50%, -50%) scale(1.1);
+                    opacity: 1;
+                }
+                60%
+                {
+                    transform: translate(-50%, -50%) scale(1.9);
+                    opacity: 0.9;
+                }
+                100%
+                {
+                    transform: translate(-50%, -50%) scale(2.4);
+                    opacity: 0;
+                }
+            }
+
+            #fireworks-canvas
+            {
+                position: fixed;
+                inset: 0;
+                pointer-events: none;
+                z-index: 2;
+            }
+    </style>
+</head>
+<body>
+    <div class="background-decor">
+        <div class="decor-heart small h1"></div>
+        <div class="decor-heart h2"></div>
+        <div class="decor-heart large h3"></div>
+        <div class="decor-heart small h4"></div>
+        <div class="decor-heart h5"></div>
+        <div class="decor-heart small pink" style="left: 6%; top: 28%; animation-duration: 19s; animation-delay: -5s;"></div>
+        <div class="decor-heart blue" style="right: 8%; top: 16%; animation-duration: 21s; animation-delay: -9s;"></div>
+        <div class="decor-heart small blue" style="right: 14%; bottom: 30%; animation-duration: 20s; animation-delay: -3s;"></div>
+        <div class="decor-star big" style="top: 12%; left: 18%; animation-duration: 6s;"></div>
+        <div class="decor-star" style="top: 8%; left: 42%; animation-duration: 7s; animation-delay: -2s;"></div>
+        <div class="decor-star" style="top: 20%; right: 26%; animation-duration: 5.5s; animation-delay: -1.5s;"></div>
+        <div class="decor-star big" style="bottom: 24%; left: 32%; animation-duration: 8s; animation-delay: -3s;"></div>
+        <div class="decor-star" style="bottom: 18%; right: 16%; animation-duration: 6.5s;"></div>
+        <div class="decor-bokeh-circle small" style="top: 14%; right: 32%; animation-delay: -6s;"></div>
+        <div class="decor-bokeh-circle" style="bottom: 10%; left: 24%; animation-delay: -10s;"></div>
+        <div class="decor-bokeh-circle large" style="top: 32%; left: 50%; animation-delay: -14s;"></div>
+    </div>
+    <canvas id="fireworks-canvas"></canvas>
+    <div class="loading-overlay" id="loading">照片加载中，请稍候...</div>
+    <div class="photo-album" id="album">
+        <div class="controls">点击切换照片 | 自动播放中...</div>
+    </div>
+
+    <script>
+        // 直接使用 images 目录中现有的所有图片文件名
+        const photos =
+        [
+            "images/80e42d788o84090fbe38f04969026655.jpg",
+            "images/4beebce76sea3351000e70b62e40c788.jpg",
+            "images/fb70b833dt5d61eae9895999f4f88031.jpg",
+            "images/86eb2c630tc213567793906ae2394c41.jpg",
+            "images/65b0e9057j58e3e01e8a3195fe59f878.jpg",
+            "images/ba9fe2adbv118e9a83d4f38d3c63fec6.jpg",
+            "images/0d893e8c9p4e25b9776e565278045446.jpg",
+            "images/55cdc9ecbn4b07fba62619dceb7ed1cc.jpg",
+            "images/225adca47v30f04f45ccbdb9e641e30b.jpg",
+            "images/c5bc228f9t85f0daacc1a1aea64532b6.jpg",
+            "images/70b3a3f88v1fe6a2ad307e2566e8098a.jpg",
+            "images/48d6c549cr26900d8209585bf55c8fa7.jpg",
+            "images/1ffd3e4a3q3b6979bfe7c95677d283d2.jpg",
+            "images/4e170c116j7d916059ff8a1ccc0a4c2e.jpg",
+            "images/2f60c5117l3c4783d7d3940107df16b3.jpg",
+            "images/e312607b1m4c475da9406ce00f6522dc.jpg",
+            "images/9b5b986d3k1fbb714049e747b84f3641.jpg",
+            "images/39dab5815l057a87e243b779d82086e0.jpg",
+            "images/144fe9589j25d1d7e1b27483cefc9825.jpg",
+            "images/f8f6ce53dg02f416691d7a0c89c550f5.jpg",
+            "images/6c272f9d3o7098bb9cb58438bf40166c.jpg",
+            "images/439e2923fvb7ead1b956a861c22821c9.jpg",
+            "images/0d263b0dcsa27e42c1bb8e2f9f85fd7d.jpg",
+            "images/c6defbe9av7742d987ae9f29a517d052.jpg",
+            "images/7c36954b6hd26e51ff2b1cf73e57589b.jpg",
+            "images/d0619d08ana9038faa9f1b388f2ba0bb.jpg",
+            "images/6e50d7f9evc8eb3b08e0700dce3541e2.jpg",
+            "images/e53adeffbi3505119a25f1efac6d4fb1.jpg",
+            "images/c7960d874ua2a16aa19987676d95640a.jpg",
+            "images/b4d2108c2v4a5488fabf1c7c8cfede51.jpg",
+            "images/e6b441079j1c1e2577178ea77849e4a8.jpg",
+            "images/c263742f0g58400af2a6cbcb645b63b6.jpg",
+            "images/7a5008ae9lba7dc975382fd8abd9fefa.jpg",
+            "images/c6b712807i18afd3a10563fd7084dbee.jpg",
+            "images/80add225fsacf6c2702420c07288c9f9.jpg",
+            "images/bf2b6cd93ufe6fe57d8fc2b90e640bd8.jpg",
+            "images/f994443b9tea9ef217cc5f01d213402d.jpg",
+            "images/4a60f1b07hf561a7e9552685d584230b.jpg",
+            "images/bf1a8b406ie644c12d2ddae566391004.jpg",
+            "images/f9a85ea85ub26e0e81b06c23b9d1c7ac.jpg",
+            "images/1e9c761acvabd9add48362ace8f0d297.jpg",
+            "images/0e24131d2q8c6652dbceea2ce4f61634.jpg",
+            "images/1dcb4f71ek5643cb0ad7284ea4092586.jpg",
+            "images/89140c764ubd6c6f63579c362cd5a7c8.jpg",
+            "images/2abe03d7cnf0dad76338d9519c16c295.jpg",
+            "images/72aed97des81b12befb8035f02ca7adc.jpg",
+            "images/f6d8f5bfcob9a30296678c88d73af2d0.jpg",
+            "images/4b7c31acak20e227f1eafacf0bb68e7d.jpg",
+            "images/b8aa5c947k73caf9653c2e147fda76ad.jpg",
+            "images/d24fb76aeg6542c37a1b59f2ed14b507.jpg",
+            "images/d2fae2281g7b1a1f3d1483ec96ee855c.jpg",
+            "images/0c16d5606lc0eb45ab6f9895e0b30f03.jpg",
+            "images/b57175c55nff34870a54ed8e93c42400.jpg",
+            "images/0a32f6e32sc571c042c2f619fa95b14c.jpg",
+            "images/73ee31130o1fab84e1097470f4e57c2c.jpg",
+            "images/f3ea38695o1dd7169ce5e9ae8d42acd4.jpg",
+            "images/96e4a1082j4fb21f4fe2dfcdb18b4b4e.jpg",
+            "images/c6437d760k50ac8d5d42bcf3e43a1e88.jpg",
+            "images/789ce6a38s72c35c41d04c35061cbc81.jpg",
+            "images/325dbf296mceb63b80c465ab5392a7cd.jpg",
+            "images/51a96399fubc766798b868185f738106.jpg",
+            "images/602d0667ard20e6571c95dcbac6eed25.jpg",
+            "images/6dd2d8127r1803280e23fa16721253b0.jpg",
+            "images/7993d6771r14d6d59ac78b9a49c6d7c5.jpg",
+            "images/9932be038lb2046494b5a71153469ce0.jpg",
+            "images/c5c5ab7b9t44308f44a4085fa228208f.jpg",
+            "images/3d1c12b32h586ec88b0af06c29b4695c.jpg",
+            "images/5f69a8825i073222eceeb5a464f493dd.jpg",
+            "images/5530fc30cj0c9082a75113f5d272faab.jpg",
+            "images/0e07eab43n771c60a423a3e804285252.jpg",
+            "images/2c26062abn5feac9585ee652ca496c70.jpg",
+            "images/aad139561k05d26051733e99a27d93e9.jpg",
+            "images/87079d5cah6bc7c85db39478fbb95a9f.jpg",
+            "images/898af5bebpc2e82bc96d604cb71c27d4.jpg",
+            "images/1d5c5d880i596b664cc182cdf12c07a4.jpg",
+            "images/514cebc7erb142b2ec7ab97f7f540277.jpg",
+            "images/49179ad92vbffb4d72e867abe5c2db62.jpg",
+            "images/0b2953968kbed315a7adbb73929ee500.jpg",
+            "images/4cb66ebd3k3745820862004869e2158f.jpg",
+            "images/845f44e59jcca78cd728fcf04213a540.jpg",
+            "images/0bdec1fb4jaa85bc9f8d3f9a95690066.jpg",
+            "images/d76b12b59m057d2f866791016e7ac06f.jpg",
+            "images/8e436a18eh16474e736f6cda4bb5f5bb.jpg",
+            "images/b98b12316s80f5d99b24851acf6f8333.jpg",
+            "images/a06332047mcc1152c5e9904c99592b34.jpg",
+            "images/927af561fq53f50dbe4f1ab8c44da7a5.jpg",
+            "images/e908266aep1f705160e7343b4dc1980b.jpg",
+            "images/f945374f9m35d9b3e9473437b293d6b2.jpg",
+            "images/88d9ca73avf8d1befeea4b7c755e9523.jpg",
+            "images/600a54510ne35438c4e764115e833a06.jpg",
+            "images/c1fcc0cfbo824634794b4c507a2adf04.jpg",
+            "images/4f2d35467t161effcd0c5219cc2c0ae5.jpg",
+            "images/c3d27ab32md4d0ac0488b764f52ad00a.jpg",
+            "images/b48364169nf0f0098fe6f997bc11e90e.jpg",
+            "images/f01d82bb5gf97ab0d31fb5372a8c9af3.jpg",
+            "images/d37147587sc9f504bf358dc5200075a3.jpg",
+            "images/1f618e88btb823f4c56ad666416fd2fd.jpg",
+            "images/1842b63b1o8f07edff260af8ae96f77a.jpg",
+            "images/5f9cc9ba9la70af506debdb311920fe3.jpg",
+            "images/dcba6c9bbq1aaab009fa606a29b9e59b.jpg"
+        ];
+
+        async function loadValidImages()
+        {
+            return photos.length > 0 ? photos : ["https://picsum.photos/800/500?random=1"];
+        }
+
+        async function preloadImages(urls)
+        {
+            const tasks = urls.map((url) =>
+            {
+                return new Promise((resolve) =>
+                {
+                    const img = new Image();
+                    img.onload = () => resolve();
+                    img.onerror = () => resolve();
+                    img.src = url;
+                });
+            });
+            await Promise.all(tasks);
+        }
+
+        // 其余代码与之前相同（转场动画、播放逻辑等）
+        const album = document.getElementById("album");
+        let currentIndex = 0;
+        let playOrder = [];
+        let isPlaying = true;
+        let interval;
+        let loadedPhotos = [];
+        let fireworksCanvas;
+        let fireworksCtx;
+        let fireworksWidth = 0;
+        let fireworksHeight = 0;
+        let fireworks = [];
+        let fireworkParticles = [];
+        let fireworkLaunchTimer;
+
+        function initRoses()
+        {
+            const decor = document.querySelector(".background-decor");
+            if (!decor)
+            {
+                return;
+            }
+            const count = 3 + Math.floor(Math.random() * 4);
+            for (let i = 0; i < count; i++)
+            {
+                const rose = document.createElement("div");
+                rose.className = "decor-flower" + (Math.random() < 0.4 ? " large" : " small");
+                const left = 8 + Math.random() * 84;
+                const top = 20 + Math.random() * 60;
+                const delay = -Math.random() * 16;
+                const duration = 14 + Math.random() * 6;
+                rose.style.left = left.toFixed(1) + "%";
+                rose.style.top = top.toFixed(1) + "%";
+                rose.style.animationDelay = delay.toFixed(2) + "s";
+                rose.style.animationDuration = duration.toFixed(1) + "s";
+                decor.appendChild(rose);
+            }
+        }
+
+        function initFireworksCanvas()
+        {
+            fireworksCanvas = document.getElementById("fireworks-canvas");
+            if (!fireworksCanvas)
+            {
+                return;
+            }
+            fireworksCtx = fireworksCanvas.getContext("2d");
+
+            function resize()
+            {
+                fireworksWidth = window.innerWidth;
+                fireworksHeight = window.innerHeight;
+                fireworksCanvas.width = fireworksWidth;
+                fireworksCanvas.height = fireworksHeight;
+            }
+
+            resize();
+            window.addEventListener("resize", resize);
+
+            if (fireworkLaunchTimer)
+            {
+                clearInterval(fireworkLaunchTimer);
+            }
+            fireworkLaunchTimer = setInterval(() =>
+            {
+                launchFirework();
+                if (Math.random() < 0.7)
+                {
+                    launchFirework();
+                }
+            }, 420);
+
+            requestAnimationFrame(updateFireworks);
+        }
+
+        function launchFirework()
+        {
+            const startX = Math.random() * fireworksWidth;
+            const startY = fireworksHeight + 20;
+            const targetX = 120 + Math.random() * (fireworksWidth - 240);
+            const targetY = 80 + Math.random() * (fireworksHeight * 0.35);
+            const angle = Math.atan2(targetY - startY, targetX - startX);
+            const speed = 7 + Math.random() * 3.5;
+
+            fireworks.push(
+                {
+                    x: startX,
+                    y: startY,
+                    vx: Math.cos(angle) * speed,
+                    vy: Math.sin(angle) * speed,
+                    tx: targetX,
+                    ty: targetY,
+                    color: `hsl(${Math.floor(200 + Math.random() * 120)}, 100%, 70%)`
+                });
+        }
+
+        function explodeFirework(firework)
+        {
+            const count = 40 + Math.floor(Math.random() * 32);
+            for (let i = 0; i < count; i++)
+            {
+                const angle = (Math.PI * 2 * i) / count + (Math.random() - 0.5) * 0.25;
+                const speed = 2.8 + Math.random() * 3.8;
+                fireworkParticles.push(
+                    {
+                        x: firework.x,
+                        y: firework.y,
+                        vx: Math.cos(angle) * speed,
+                        vy: Math.sin(angle) * speed,
+                        life: 1,
+                        decay: 0.010 + Math.random() * 0.015,
+                        color: firework.color
+                    });
+            }
+        }
+
+        function updateFireworks(timestamp)
+        {
+            if (!fireworksCtx)
+            {
+                return;
+            }
+
+            fireworksCtx.fillStyle = "rgba(0, 0, 0, 0.25)";
+            fireworksCtx.fillRect(0, 0, fireworksWidth, fireworksHeight);
+
+            fireworks = fireworks.filter((fw) =>
+            {
+                const dx = fw.tx - fw.x;
+                const dy = fw.ty - fw.y;
+                const distSq = dx * dx + dy * dy;
+                if (distSq < 900)
+                {
+                    explodeFirework(fw);
+                    return false;
+                }
+                fw.x += fw.vx;
+                fw.y += fw.vy;
+                fireworksCtx.beginPath();
+                fireworksCtx.arc(fw.x, fw.y, 2.5, 0, Math.PI * 2);
+                fireworksCtx.fillStyle = "#ffffff";
+                fireworksCtx.fill();
+                return true;
+            });
+
+            fireworkParticles = fireworkParticles.filter((p) =>
+            {
+                p.vy += 0.035;
+                p.vx *= 0.982;
+                p.vy *= 0.982;
+                p.x += p.vx;
+                p.y += p.vy;
+                p.life -= p.decay;
+                if (p.life <= 0)
+                {
+                    return false;
+                }
+
+                const tailX = p.x - p.vx * 6;
+                const tailY = p.y - p.vy * 6;
+                fireworksCtx.beginPath();
+                fireworksCtx.moveTo(tailX, tailY);
+                fireworksCtx.lineTo(p.x, p.y);
+                fireworksCtx.strokeStyle = p.color;
+                fireworksCtx.globalAlpha = Math.max(p.life, 0);
+                fireworksCtx.lineWidth = 2;
+                fireworksCtx.stroke();
+                fireworksCtx.globalAlpha = 1;
+                return true;
+            });
+
+            requestAnimationFrame(updateFireworks);
+        }
+
+        async function init()
+        {
+            const loading = document.getElementById("loading");
+            if (loading)
+            {
+                loading.style.display = "flex";
+            }
+
+            loadedPhotos = await loadValidImages();
+            buildRandomOrder();
+            await preloadImages(loadedPhotos);
+            initPhotos();
+            initControls();
+            initFireworksCanvas();
+
+            if (loading)
+            {
+                loading.style.display = "none";
+            }
+
+            startSlideshow();
+        }
+
+        function buildRandomOrder()
+        {
+            playOrder = [];
+            for (let i = 0; i < loadedPhotos.length; i++)
+            {
+                playOrder.push(i);
+            }
+            for (let i = playOrder.length - 1; i > 0; i--)
+            {
+                const j = Math.floor(Math.random() * (i + 1));
+                const temp = playOrder[i];
+                playOrder[i] = playOrder[j];
+                playOrder[j] = temp;
+            }
+            currentIndex = 0;
+        }
+
+        function initPhotos()
+        {
+            album.querySelectorAll(".photo").forEach(el => el.remove());
+            loadedPhotos.forEach((photo) =>
+            {
+                const photoElement = document.createElement("div");
+                photoElement.className = "photo";
+                photoElement.style.backgroundImage = `url(${photo})`;
+                album.appendChild(photoElement);
+            });
+            if (playOrder.length > 0)
+            {
+                showPhoto(playOrder[0]);
+            }
+        }
+
+        function showPhoto(index)
+        {
+            const photoElements = album.querySelectorAll(".photo");
+            if (photoElements.length === 0)
+            {
+                return;
+            }
+            const safeIndex = ((index % photoElements.length) + photoElements.length) % photoElements.length;
+
+            const effectClasses =
+            [
+                "effect-zoom",
+                "effect-slide-left",
+                "effect-slide-right",
+                "effect-rotate",
+                "effect-slide-up",
+                "effect-slide-down",
+                "effect-zoom-in-soft",
+                "effect-zoom-out-soft",
+                "effect-blur-in",
+                "effect-pan-left",
+                "effect-pan-right",
+                "effect-pan-up",
+                "effect-pan-down",
+                "effect-rotate-y",
+                "effect-rotate-x",
+                "effect-tilt-left",
+                "effect-tilt-right",
+                "effect-fade-long",
+                "effect-zoom-rotate",
+                "effect-subtle-shake"
+            ];
+
+            const randomEffect = effectClasses[Math.floor(Math.random() * effectClasses.length)];
+
+            photoElements.forEach((el, i) =>
+            {
+                el.classList.remove(
+                    "effect-zoom",
+                    "effect-slide-left",
+                    "effect-slide-right",
+                    "effect-rotate",
+                    "effect-slide-up",
+                    "effect-slide-down",
+                    "effect-zoom-in-soft",
+                    "effect-zoom-out-soft",
+                    "effect-blur-in",
+                    "effect-pan-left",
+                    "effect-pan-right",
+                    "effect-pan-up",
+                    "effect-pan-down",
+                    "effect-rotate-y",
+                    "effect-rotate-x",
+                    "effect-tilt-left",
+                    "effect-tilt-right",
+                    "effect-fade-long",
+                    "effect-zoom-rotate",
+                    "effect-subtle-shake",
+                    "active"
+                );
+                if (i === safeIndex)
+                {
+                    void el.offsetWidth;
+                    el.classList.add("active", randomEffect);
+                }
+            });
+        }
+
+        function nextPhoto()
+        {
+            if (loadedPhotos.length === 0)
+            {
+                return;
+            }
+            if (playOrder.length === 0)
+            {
+                buildRandomOrder();
+            }
+            const indexToShow = playOrder[currentIndex];
+            showPhoto(indexToShow);
+            currentIndex++;
+            if (currentIndex >= playOrder.length)
+            {
+                buildRandomOrder();
+            }
+        }
+
+        function startSlideshow()
+        {
+            if (interval)
+            {
+                clearInterval(interval);
+            }
+            if (!isPlaying)
+            {
+                return;
+            }
+            interval = setInterval(nextPhoto, 3000);
+        }
+
+        function togglePlay()
+        {
+            isPlaying = !isPlaying;
+            const statusSpan = document.querySelector(".controls .status");
+            if (statusSpan)
+            {
+                statusSpan.textContent = isPlaying ? "自动播放中" : "已暂停，点击继续";
+            }
+            if (isPlaying)
+            {
+                startSlideshow();
+            }
+            else if (interval)
+            {
+                clearInterval(interval);
+            }
+        }
+
+        function initControls()
+        {
+            const controls = document.querySelector(".controls");
+            if (!controls)
+            {
+                return;
+            }
+            controls.innerHTML = "<span class=\"status\"></span>";
+            controls.addEventListener("click", () =>
+            {
+                nextPhoto();
+                togglePlay();
+            });
+        }
+
+        // 初始化
+        init();
+    </script>
+</body>
+</html>

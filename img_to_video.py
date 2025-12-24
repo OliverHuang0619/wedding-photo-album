@@ -47,18 +47,23 @@ def _format_time(seconds: float) -> str:
     return f"{minutes:02d}:{sec:02d}"
 
 
-def _print_progress(prefix: str, current: int, total: int, start_time: float) -> None:
+def _print_progress(current: int, total: int, start_time: float, stage: str = "Processing") -> None:
     if total <= 0:
         return
     elapsed = time.time() - start_time
     progress = current / total
     eta = elapsed / progress - elapsed if progress > 0 else 0.0
     percent = progress * 100.0
+    bar_length = 30
+    filled = int(bar_length * progress)
+    bar = '█' * filled + '░' * (bar_length - filled)
     print(
-        f"{prefix}: {current}/{total} ({percent:.1f}%) "
-        f"Elapsed: {_format_time(elapsed)} "
-        f"ETA: {_format_time(eta)}"
+        f"\r{stage}: [{bar}] {current}/{total} ({percent:.1f}%) | "
+        f"Elapsed: {_format_time(elapsed)} | ETA: {_format_time(eta)}",
+        end='', flush=True
     )
+    if current >= total:
+        print()
 
 
 def images_to_video_with_moviepy(
@@ -113,9 +118,10 @@ def images_to_video_with_moviepy(
     processed_images = 0
     start_time = time.time()
     clips = []
-    for img_path, duration in zip(image_paths, durations):
+    print(f"Preparing {total_images} image clips...")
+    for idx, (img_path, duration) in enumerate(zip(image_paths, durations), 1):
         if not os.path.exists(img_path):
-            print(f"Warning: Image not found: {img_path}, skipping...")
+            print(f"\nWarning: Image not found: {img_path}, skipping...")
             continue
         
         try:
@@ -136,15 +142,9 @@ def images_to_video_with_moviepy(
                                 clip = clip.resized((width, height))
             clips.append(clip)
             processed_images += 1
-            print(f"Processed: {img_path} (duration: {duration}s)")
-            _print_progress(
-                "Preparing clips",
-                processed_images,
-                total_images,
-                start_time
-            )
+            _print_progress(processed_images, total_images, start_time, "Preparing clips")
         except Exception as e:
-            print(f"Warning: Could not process image {img_path}: {e}, skipping...")
+            print(f"\nWarning: Could not process image {img_path}: {e}, skipping...")
             continue
     
     if not clips:
@@ -152,16 +152,54 @@ def images_to_video_with_moviepy(
     
     final_clip = concatenate_videoclips(clips, method="compose")
     try:
-        final_clip.write_videofile(
-            output_path,
-            fps=fps,
-            codec='libx264',
-            audio=False,
-            preset='medium',
-            ffmpeg_params=['-pix_fmt', 'yuv420p'],
-            logger="bar"
-        )
-        print(f"Video saved to: {output_path}")
+        total_duration = final_clip.duration
+        encoding_start = time.time()
+        print(f"\nEncoding video (duration: {_format_time(total_duration)})...")
+        
+        import threading
+        import sys
+        stop_progress = threading.Event()
+        animation_chars = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏']
+        animation_index = [0]
+        
+        def show_progress():
+            while not stop_progress.is_set():
+                elapsed = time.time() - encoding_start
+                elapsed_str = _format_time(elapsed)
+                
+                animation_index[0] = (animation_index[0] + 1) % len(animation_chars)
+                spinner = animation_chars[animation_index[0]]
+                
+                sys.stdout.write(
+                    f"\rEncoding video: {spinner} Elapsed: {elapsed_str}..."
+                )
+                sys.stdout.flush()
+                
+                if stop_progress.wait(0.1):
+                    break
+        
+        progress_thread = threading.Thread(target=show_progress, daemon=True)
+        progress_thread.start()
+        
+        try:
+            final_clip.write_videofile(
+                output_path,
+                fps=fps,
+                codec='libx264',
+                audio=False,
+                preset='medium',
+                ffmpeg_params=['-pix_fmt', 'yuv420p'],
+                logger=None
+            )
+        finally:
+            stop_progress.set()
+            if progress_thread.is_alive():
+                progress_thread.join(timeout=1.0)
+            elapsed = time.time() - encoding_start
+            print(f"\rEncoding video: ✓ Completed | Elapsed: {_format_time(elapsed)}")
+        
+        encoding_time = time.time() - encoding_start
+        print(f"Video saved to: {output_path} (Total encoding time: {_format_time(encoding_time)})")
     finally:
         final_clip.close()
         for clip in clips:
@@ -318,15 +356,16 @@ def images_to_video(
     total_images = len(image_paths)
     processed_images = 0
     start_time = time.time()
+    print(f"Encoding {total_images} images to video...")
     try:
-        for img_path, duration in zip(image_paths, durations):
+        for idx, (img_path, duration) in enumerate(zip(image_paths, durations), 1):
             if not os.path.exists(img_path):
-                print(f"Warning: Image not found: {img_path}, skipping...")
+                print(f"\nWarning: Image not found: {img_path}, skipping...")
                 continue
             
             img = cv2.imread(img_path)
             if img is None:
-                print(f"Warning: Could not read image: {img_path}, skipping...")
+                print(f"\nWarning: Could not read image: {img_path}, skipping...")
                 continue
             
             if target_size is not None:
@@ -338,15 +377,9 @@ def images_to_video(
             for _ in range(frames_for_image):
                 out.write(img)
             processed_images += 1
-            print(f"Processed: {img_path} (duration: {duration}s)")
-            _print_progress(
-                "Encoding video (OpenCV)",
-                processed_images,
-                total_images,
-                start_time
-            )
+            _print_progress(processed_images, total_images, start_time, "Encoding video")
         
-        print(f"Video saved to: {output_path}")
+        print(f"\nVideo saved to: {output_path}")
     
     finally:
         out.release()
@@ -399,14 +432,15 @@ def images_to_video_with_imageio(
     processed_images = 0
     start_time = time.time()
     frames = []
-    for img_path, duration in zip(image_paths, durations):
+    print(f"Preparing {total_images} image frames...")
+    for idx, (img_path, duration) in enumerate(zip(image_paths, durations), 1):
         if not os.path.exists(img_path):
-            print(f"Warning: Image not found: {img_path}, skipping...")
+            print(f"\nWarning: Image not found: {img_path}, skipping...")
             continue
         
         img = cv2.imread(img_path)
         if img is None:
-            print(f"Warning: Could not read image: {img_path}, skipping...")
+            print(f"\nWarning: Could not read image: {img_path}, skipping...")
             continue
         
         if target_size is not None:
@@ -419,26 +453,59 @@ def images_to_video_with_imageio(
         for _ in range(frames_for_image):
             frames.append(img_rgb)
         processed_images += 1
-        print(f"Processed: {img_path} (duration: {duration}s)")
-        _print_progress(
-            "Preparing frames (ImageIO)",
-            processed_images,
-            total_images,
-            start_time
-        )
+        _print_progress(processed_images, total_images, start_time, "Preparing frames")
     
     if not frames:
         raise ValueError("No valid frames to write")
     
     try:
-        imageio.mimwrite(
-            output_path, 
-            frames, 
-            fps=fps, 
-            codec='libx264', 
-            quality=8
-        )
-        print(f"Video saved to: {output_path}")
+        total_frames = len(frames)
+        estimated_duration = total_frames / fps
+        encoding_start = time.time()
+        print(f"\nEncoding video ({total_frames} frames, estimated duration: {_format_time(estimated_duration)})...")
+        
+        import threading
+        import sys
+        stop_progress = threading.Event()
+        animation_chars = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏']
+        animation_index = [0]
+        
+        def show_progress():
+            while not stop_progress.is_set():
+                elapsed = time.time() - encoding_start
+                elapsed_str = _format_time(elapsed)
+                
+                animation_index[0] = (animation_index[0] + 1) % len(animation_chars)
+                spinner = animation_chars[animation_index[0]]
+                
+                sys.stdout.write(
+                    f"\rEncoding video: {spinner} Elapsed: {elapsed_str}..."
+                )
+                sys.stdout.flush()
+                
+                if stop_progress.wait(0.1):
+                    break
+        
+        progress_thread = threading.Thread(target=show_progress, daemon=True)
+        progress_thread.start()
+        
+        try:
+            imageio.mimwrite(
+                output_path, 
+                frames, 
+                fps=fps, 
+                codec='libx264', 
+                quality=8
+            )
+        finally:
+            stop_progress.set()
+            if progress_thread.is_alive():
+                progress_thread.join(timeout=1.0)
+            elapsed = time.time() - encoding_start
+            print(f"\rEncoding video: ✓ Completed | Elapsed: {_format_time(elapsed)}")
+        
+        encoding_time = time.time() - encoding_start
+        print(f"Video saved to: {output_path} (Total encoding time: {_format_time(encoding_time)})")
     except Exception as e:
         error_msg = str(e)
         if 'ffmpeg' in error_msg.lower() or 'backend' in error_msg.lower():

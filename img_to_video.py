@@ -2,6 +2,25 @@ import cv2
 import os
 from typing import List, Union
 
+MOVIEPY_AVAILABLE = False
+MOVIEPY_IMPORT_ERROR = None
+
+try:
+    import moviepy
+    try:
+        from moviepy.editor import ImageClip, concatenate_videoclips
+        MOVIEPY_AVAILABLE = True
+    except ImportError:
+        try:
+            from moviepy import ImageClip, concatenate_videoclips
+            MOVIEPY_AVAILABLE = True
+        except ImportError as e:
+            MOVIEPY_AVAILABLE = False
+            MOVIEPY_IMPORT_ERROR = str(e)
+except ImportError as e:
+    MOVIEPY_AVAILABLE = False
+    MOVIEPY_IMPORT_ERROR = str(e)
+
 try:
     import imageio
     IMAGEIO_AVAILABLE = True
@@ -19,13 +38,110 @@ except ImportError:
     IMAGEIO_FFMPEG_AVAILABLE = False
 
 
+def images_to_video_with_moviepy(
+    image_paths: List[str],
+    output_path: str,
+    duration_per_image: Union[float, List[float]] = 2.0,
+    fps: int = 30,
+    target_size: tuple = None
+):
+    """
+    Convert multiple images to MP4 video using MoviePy (best compatibility).
+    
+    Args:
+        image_paths: List of image file paths
+        output_path: Output video file path
+        duration_per_image: Duration for each image in seconds
+        fps: Frames per second for the output video
+        target_size: Target resolution (width, height)
+    """
+    print("=" * 60)
+    print("Using backend: MoviePy (best compatibility)")
+    print("=" * 60)
+    
+    try:
+        try:
+            from moviepy.editor import ImageClip, concatenate_videoclips
+        except ImportError:
+            from moviepy import ImageClip, concatenate_videoclips
+    except ImportError as e:
+        raise ImportError(f"moviepy is required. Install with: pip install moviepy. Error: {e}")
+    
+    if not image_paths:
+        raise ValueError("No image paths provided")
+    
+    if isinstance(duration_per_image, (int, float)):
+        durations = [float(duration_per_image)] * len(image_paths)
+    else:
+        if len(duration_per_image) != len(image_paths):
+            raise ValueError("Number of durations must match number of images")
+        durations = [float(d) for d in duration_per_image]
+    
+    first_image = cv2.imread(image_paths[0])
+    if first_image is None:
+        raise ValueError(f"Could not read image: {image_paths[0]}")
+    
+    if target_size is None:
+        height, width = first_image.shape[:2]
+    else:
+        width, height = target_size
+    
+    clips = []
+    for img_path, duration in zip(image_paths, durations):
+        if not os.path.exists(img_path):
+            print(f"Warning: Image not found: {img_path}, skipping...")
+            continue
+        
+        try:
+            clip = ImageClip(img_path, duration=duration)
+            if target_size is not None or clip.size != (width, height):
+                try:
+                    clip = clip.resize(width=width, height=height)
+                except (TypeError, AttributeError):
+                    try:
+                        clip = clip.resized(size=(width, height))
+                    except (TypeError, AttributeError):
+                        try:
+                            clip = clip.resized(newsize=(width, height))
+                        except (TypeError, AttributeError):
+                            try:
+                                clip = clip.with_size((width, height))
+                            except (TypeError, AttributeError):
+                                clip = clip.resized((width, height))
+            clips.append(clip)
+            print(f"Processed: {img_path} (duration: {duration}s)")
+        except Exception as e:
+            print(f"Warning: Could not process image {img_path}: {e}, skipping...")
+            continue
+    
+    if not clips:
+        raise ValueError("No valid clips to concatenate")
+    
+    final_clip = concatenate_videoclips(clips, method="compose")
+    try:
+        final_clip.write_videofile(
+            output_path,
+            fps=fps,
+            codec='libx264',
+            audio=False,
+            preset='medium',
+            ffmpeg_params=['-pix_fmt', 'yuv420p'],
+            logger=None
+        )
+        print(f"Video saved to: {output_path}")
+    finally:
+        final_clip.close()
+        for clip in clips:
+            clip.close()
+
+
 def images_to_video(
     image_paths: List[str],
     output_path: str,
     duration_per_image: Union[float, List[float]] = 2.0,
     fps: int = 30,
     target_size: tuple = None,
-    use_imageio: bool = None
+    backend: str = None
 ):
     """
     Convert multiple images to a single MP4 video.
@@ -37,19 +153,76 @@ def images_to_video(
                            Can be a single float (same for all) or a list of floats (one per image)
         fps: Frames per second for the output video
         target_size: Target resolution (width, height). If None, uses first image size
-        use_imageio: If True, use imageio; If False, use OpenCV; If None, auto-select (prefer imageio if available)
+        backend: Backend to use: 'moviepy', 'imageio', 'opencv', or None for auto-select
+                 Priority: moviepy > imageio > opencv
     """
-    if use_imageio is None:
-        use_imageio = IMAGEIO_AVAILABLE
+    if backend is None:
+        print("\nChecking available backends...")
+        
+        moviepy_available = MOVIEPY_AVAILABLE
+        if not moviepy_available:
+            try:
+                import moviepy
+                try:
+                    from moviepy.editor import ImageClip, concatenate_videoclips
+                    moviepy_available = True
+                    print(f"  MoviePy: ✓ Available (detected at runtime via moviepy.editor)")
+                except ImportError:
+                    try:
+                        from moviepy import ImageClip, concatenate_videoclips
+                        moviepy_available = True
+                        print(f"  MoviePy: ✓ Available (detected at runtime via moviepy)")
+                    except ImportError as e:
+                        error_msg = f" (Error: {MOVIEPY_IMPORT_ERROR})" if MOVIEPY_IMPORT_ERROR else f" (ImportError: {e})"
+                        print(f"  MoviePy: ✗ Not available{error_msg}")
+            except ImportError as e:
+                error_msg = f" (Error: {MOVIEPY_IMPORT_ERROR})" if MOVIEPY_IMPORT_ERROR else f" (ImportError: {e})"
+                print(f"  MoviePy: ✗ Not available{error_msg}")
+        else:
+            print(f"  MoviePy: ✓ Available")
+        
+        print(f"  ImageIO: {'✓ Available' if IMAGEIO_AVAILABLE else '✗ Not available'}")
+        if IMAGEIO_AVAILABLE:
+            print(f"  ImageIO-FFmpeg: {'✓ Available' if IMAGEIO_FFMPEG_AVAILABLE else '✗ Not available'}")
+        print(f"  OpenCV: ✓ Available (fallback)\n")
+        
+        if moviepy_available:
+            backend = 'moviepy'
+        elif IMAGEIO_AVAILABLE and IMAGEIO_FFMPEG_AVAILABLE:
+            backend = 'imageio'
+        else:
+            backend = 'opencv'
+        print(f"Auto-selected backend: {backend.upper()}\n")
     
-    if use_imageio:
+    if backend == 'moviepy':
+        try:
+            try:
+                from moviepy.editor import ImageClip, concatenate_videoclips
+            except ImportError:
+                from moviepy import ImageClip, concatenate_videoclips
+            return images_to_video_with_moviepy(
+                image_paths, output_path, duration_per_image, fps, target_size
+            )
+        except ImportError as e:
+            print(f"Warning: moviepy not available ({e}), trying other backends...")
+            backend = 'imageio' if (IMAGEIO_AVAILABLE and IMAGEIO_FFMPEG_AVAILABLE) else 'opencv'
+            print(f"Switching to backend: {backend.upper()}")
+        except Exception as e:
+            print(f"Error using moviepy: {e}")
+            print("Falling back to other backends...")
+            backend = 'imageio' if (IMAGEIO_AVAILABLE and IMAGEIO_FFMPEG_AVAILABLE) else 'opencv'
+            print(f"Switching to backend: {backend.upper()}")
+    
+    if backend == 'imageio':
         if not IMAGEIO_AVAILABLE:
             print("Warning: imageio not available, falling back to OpenCV")
-            use_imageio = False
+            backend = 'opencv'
+            print(f"Switching to backend: {backend.upper()}")
         elif not IMAGEIO_FFMPEG_AVAILABLE:
             print("Warning: imageio-ffmpeg plugin not available, falling back to OpenCV")
             print("To use imageio, install: pip install imageio[ffmpeg] or pip install imageio-ffmpeg")
-            use_imageio = False
+            backend = 'opencv'
+            print(f"Switching to backend: {backend.upper()}")
         else:
             try:
                 return images_to_video_with_imageio(
@@ -58,7 +231,12 @@ def images_to_video(
             except Exception as e:
                 print(f"Error using imageio: {e}")
                 print("Falling back to OpenCV...")
-                use_imageio = False
+                backend = 'opencv'
+                print(f"Switching to backend: {backend.upper()}")
+    
+    print("=" * 60)
+    print("Using backend: OpenCV")
+    print("=" * 60)
     
     if not image_paths:
         raise ValueError("No image paths provided")
@@ -83,13 +261,14 @@ def images_to_video(
     out = None
     used_codec = None
     
+    print("Trying codecs:", ', '.join(codec_priority))
     for codec_name in codec_priority:
         try:
             fourcc = cv2.VideoWriter_fourcc(*codec_name)
             out = cv2.VideoWriter(output_path, fourcc, fps, (width, height))
             if out.isOpened():
                 used_codec = codec_name
-                print(f"Using codec: {codec_name}")
+                print(f"Selected codec: {codec_name}")
                 break
             else:
                 out.release()
@@ -149,6 +328,10 @@ def images_to_video_with_imageio(
         fps: Frames per second for the output video
         target_size: Target resolution (width, height)
     """
+    print("=" * 60)
+    print("Using backend: ImageIO")
+    print("=" * 60)
+    
     if not IMAGEIO_AVAILABLE:
         raise ImportError("imageio is required. Install with: pip install imageio imageio-ffmpeg")
     
@@ -224,7 +407,7 @@ def images_to_video_from_folder(
     fps: int = 30,
     target_size: tuple = None,
     image_extensions: tuple = ('.jpg', '.jpeg', '.png', '.bmp', '.tiff'),
-    use_imageio: bool = False
+    backend: str = None
 ):
     """
     Convert all images in a folder to a single MP4 video.
@@ -236,6 +419,7 @@ def images_to_video_from_folder(
         fps: Frames per second for the output video
         target_size: Target resolution (width, height)
         image_extensions: Tuple of valid image file extensions
+        backend: Backend to use: 'moviepy', 'imageio', 'opencv', or None for auto-select
     """
     image_files = []
     for filename in sorted(os.listdir(folder_path)):
@@ -246,7 +430,7 @@ def images_to_video_from_folder(
         raise ValueError(f"No images found in folder: {folder_path}")
     
     print(f"Found {len(image_files)} images in folder")
-    images_to_video(image_files, output_path, duration_per_image, fps, target_size, use_imageio)
+    images_to_video(image_files, output_path, duration_per_image, fps, target_size, backend)
 
 
 if __name__ == "__main__":
@@ -259,10 +443,14 @@ if __name__ == "__main__":
     parser.add_argument('--fps', type=int, default=30, help='Frames per second')
     parser.add_argument('--width', type=int, help='Video width')
     parser.add_argument('--height', type=int, help='Video height')
-    parser.add_argument('--use-imageio', action='store_true', 
-                       help='Force use imageio (better Windows compatibility, requires imageio package)')
+    parser.add_argument('--backend', type=str, choices=['moviepy', 'imageio', 'opencv'],
+                       help='Backend to use: moviepy (best compatibility), imageio, or opencv. Auto-select if not specified.')
+    parser.add_argument('--use-moviepy', action='store_true',
+                       help='Force use MoviePy (best compatibility, requires moviepy package)')
+    parser.add_argument('--use-imageio', action='store_true',
+                       help='Force use imageio (requires imageio package)')
     parser.add_argument('--use-opencv', action='store_true',
-                       help='Force use OpenCV instead of imageio')
+                       help='Force use OpenCV')
     
     args = parser.parse_args()
     
@@ -270,11 +458,15 @@ if __name__ == "__main__":
     if args.width and args.height:
         target_size = (args.width, args.height)
     
-    use_imageio = None
-    if args.use_imageio:
-        use_imageio = True
+    backend = None
+    if args.backend:
+        backend = args.backend
+    elif args.use_moviepy:
+        backend = 'moviepy'
+    elif args.use_imageio:
+        backend = 'imageio'
     elif args.use_opencv:
-        use_imageio = False
+        backend = 'opencv'
     
     if os.path.isdir(args.input):
         images_to_video_from_folder(
@@ -283,7 +475,7 @@ if __name__ == "__main__":
             args.duration,
             args.fps,
             target_size,
-            use_imageio=use_imageio
+            backend=backend
         )
     else:
         image_paths = [path.strip() for path in args.input.split(',')]
@@ -293,6 +485,6 @@ if __name__ == "__main__":
             args.duration,
             args.fps,
             target_size,
-            use_imageio
+            backend
         )
 

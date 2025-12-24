@@ -1,5 +1,6 @@
 import cv2
 import os
+import time
 from typing import List, Union
 
 MOVIEPY_AVAILABLE = False
@@ -36,6 +37,28 @@ try:
 except ImportError:
     IMAGEIO_AVAILABLE = False
     IMAGEIO_FFMPEG_AVAILABLE = False
+
+
+def _format_time(seconds: float) -> str:
+    minutes, sec = divmod(int(seconds), 60)
+    hours, minutes = divmod(minutes, 60)
+    if hours > 0:
+        return f"{hours:02d}:{minutes:02d}:{sec:02d}"
+    return f"{minutes:02d}:{sec:02d}"
+
+
+def _print_progress(prefix: str, current: int, total: int, start_time: float) -> None:
+    if total <= 0:
+        return
+    elapsed = time.time() - start_time
+    progress = current / total
+    eta = elapsed / progress - elapsed if progress > 0 else 0.0
+    percent = progress * 100.0
+    print(
+        f"{prefix}: {current}/{total} ({percent:.1f}%) "
+        f"Elapsed: {_format_time(elapsed)} "
+        f"ETA: {_format_time(eta)}"
+    )
 
 
 def images_to_video_with_moviepy(
@@ -86,6 +109,9 @@ def images_to_video_with_moviepy(
     else:
         width, height = target_size
     
+    total_images = len(image_paths)
+    processed_images = 0
+    start_time = time.time()
     clips = []
     for img_path, duration in zip(image_paths, durations):
         if not os.path.exists(img_path):
@@ -109,7 +135,14 @@ def images_to_video_with_moviepy(
                             except (TypeError, AttributeError):
                                 clip = clip.resized((width, height))
             clips.append(clip)
+            processed_images += 1
             print(f"Processed: {img_path} (duration: {duration}s)")
+            _print_progress(
+                "Preparing clips",
+                processed_images,
+                total_images,
+                start_time
+            )
         except Exception as e:
             print(f"Warning: Could not process image {img_path}: {e}, skipping...")
             continue
@@ -126,7 +159,7 @@ def images_to_video_with_moviepy(
             audio=False,
             preset='medium',
             ffmpeg_params=['-pix_fmt', 'yuv420p'],
-            logger=None
+            logger="bar"
         )
         print(f"Video saved to: {output_path}")
     finally:
@@ -282,6 +315,9 @@ def images_to_video(
             f"Please ensure OpenCV is properly installed with codec support."
         )
     
+    total_images = len(image_paths)
+    processed_images = 0
+    start_time = time.time()
     try:
         for img_path, duration in zip(image_paths, durations):
             if not os.path.exists(img_path):
@@ -299,11 +335,16 @@ def images_to_video(
                 img = cv2.resize(img, (width, height))
             
             frames_for_image = int(duration * fps)
-            
             for _ in range(frames_for_image):
                 out.write(img)
-            
+            processed_images += 1
             print(f"Processed: {img_path} (duration: {duration}s)")
+            _print_progress(
+                "Encoding video (OpenCV)",
+                processed_images,
+                total_images,
+                start_time
+            )
         
         print(f"Video saved to: {output_path}")
     
@@ -354,6 +395,9 @@ def images_to_video_with_imageio(
     else:
         width, height = target_size
     
+    total_images = len(image_paths)
+    processed_images = 0
+    start_time = time.time()
     frames = []
     for img_path, duration in zip(image_paths, durations):
         if not os.path.exists(img_path):
@@ -372,11 +416,16 @@ def images_to_video_with_imageio(
         
         img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
         frames_for_image = int(duration * fps)
-        
         for _ in range(frames_for_image):
             frames.append(img_rgb)
-        
+        processed_images += 1
         print(f"Processed: {img_path} (duration: {duration}s)")
+        _print_progress(
+            "Preparing frames (ImageIO)",
+            processed_images,
+            total_images,
+            start_time
+        )
     
     if not frames:
         raise ValueError("No valid frames to write")

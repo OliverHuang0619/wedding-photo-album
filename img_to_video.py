@@ -329,13 +329,23 @@ def images_to_video_with_moviepy(
         
         try:
             preset = 'ultrafast' if fast_encode else 'medium'
+            keyframe_interval = fps * 2
+            ffmpeg_params = [
+                '-pix_fmt', 'yuv420p',
+                '-movflags', '+faststart',
+                '-g', str(keyframe_interval),
+                '-keyint_min', str(keyframe_interval),
+                '-profile:v', 'baseline',
+                '-level', '3.0',
+                '-threads', str(num_threads or 0)
+            ]
             final_clip.write_videofile(
                 output_path_abs,
                 fps=fps,
                 codec='libx264',
                 audio=False,
                 preset=preset,
-                ffmpeg_params=['-pix_fmt', 'yuv420p', '-movflags', '+faststart', '-threads', str(num_threads or 0)],
+                ffmpeg_params=ffmpeg_params,
                 bitrate=None,
                 logger=None
             )
@@ -721,7 +731,15 @@ def images_to_video_with_imageio(
             os.makedirs(output_dir, exist_ok=True)
         
         try:
-            ffmpeg_params = ['-pix_fmt', 'yuv420p', '-movflags', '+faststart']
+            keyframe_interval = fps * 2
+            ffmpeg_params = [
+                '-pix_fmt', 'yuv420p',
+                '-movflags', '+faststart',
+                '-g', str(keyframe_interval),
+                '-keyint_min', str(keyframe_interval),
+                '-profile:v', 'baseline',
+                '-level', '3.0'
+            ]
             if fast_encode:
                 ffmpeg_params.extend(['-preset', 'ultrafast'])
             if num_threads:

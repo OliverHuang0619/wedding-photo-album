@@ -4,6 +4,7 @@ import time
 import random
 import numpy as np
 from typing import List, Union, Optional
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 MOVIEPY_AVAILABLE = False
 MOVIEPY_IMPORT_ERROR = None
@@ -178,7 +179,9 @@ def images_to_video_with_moviepy(
     fps: int = 30,
     target_size: tuple = None,
     transition_duration: float = 0.5,
-    enable_transitions: bool = True
+    enable_transitions: bool = True,
+    fast_encode: bool = True,
+    num_threads: int = None
 ):
     """
     Convert multiple images to MP4 video using MoviePy (best compatibility).
@@ -191,6 +194,8 @@ def images_to_video_with_moviepy(
         target_size: Target resolution (width, height)
         transition_duration: Duration of transition between images in seconds
         enable_transitions: Whether to enable random transitions between images
+        fast_encode: Use faster encoding preset for speed
+        num_threads: Number of threads for parallel image processing
     """
     print("=" * 60)
     print("Using backend: MoviePy (best compatibility)")
@@ -243,36 +248,38 @@ def images_to_video_with_moviepy(
                 continue
             
             if target_size is not None:
-                img = cv2.resize(img, (width, height))
+                img = cv2.resize(img, (width, height), interpolation=cv2.INTER_LINEAR)
             elif img.shape[:2] != (height, width):
-                img = cv2.resize(img, (width, height))
+                img = cv2.resize(img, (width, height), interpolation=cv2.INTER_LINEAR)
+            
+            img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
             
             if enable_transitions and prev_img is not None and idx > 1:
                 transition_type = _get_random_transition()
-                transition_frames = int(transition_duration * fps)
+                transition_frames = max(1, round(transition_duration * fps))
+                if fast_encode:
+                    transition_frames = max(1, transition_frames // 2)
                 
                 transition_clips = []
+                actual_transition_duration = transition_duration
+                if fast_encode and transition_frames > 0:
+                    actual_transition_duration = transition_duration * (transition_frames / max(1, round(transition_duration * fps)))
+                
                 for frame_idx in range(transition_frames):
-                    progress = frame_idx / transition_frames
+                    progress = frame_idx / max(1, transition_frames - 1) if transition_frames > 1 else 1.0
+                    progress = min(1.0, max(0.0, progress))
                     transition_frame = _apply_transition(prev_img, img, transition_type, progress, width, height)
                     transition_frame_rgb = cv2.cvtColor(transition_frame, cv2.COLOR_BGR2RGB)
-                    frame_duration = transition_duration / transition_frames
+                    frame_duration = actual_transition_duration / transition_frames
                     transition_clip = ImageClip(transition_frame_rgb, duration=frame_duration)
                     transition_clips.append(transition_clip)
                 
                 if transition_clips:
                     transition_clip = concatenate_videoclips(transition_clips, method="compose")
                     clips.append(transition_clip)
-                    actual_duration = max(0, duration - transition_duration)
-                else:
-                    actual_duration = duration
-            else:
-                actual_duration = duration
             
-            if actual_duration > 0:
-                img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-                clip = ImageClip(img_rgb, duration=actual_duration)
-                clips.append(clip)
+            clip = ImageClip(img_rgb, duration=duration)
+            clips.append(clip)
             
             prev_img = img
             processed_images += 1
@@ -315,16 +322,28 @@ def images_to_video_with_moviepy(
         progress_thread = threading.Thread(target=show_progress, daemon=True)
         progress_thread.start()
         
+        output_path_abs = os.path.abspath(output_path)
+        output_dir = os.path.dirname(output_path_abs)
+        if output_dir and not os.path.exists(output_dir):
+            os.makedirs(output_dir, exist_ok=True)
+        
         try:
+            preset = 'ultrafast' if fast_encode else 'medium'
             final_clip.write_videofile(
-                output_path,
+                output_path_abs,
                 fps=fps,
                 codec='libx264',
                 audio=False,
-                preset='medium',
-                ffmpeg_params=['-pix_fmt', 'yuv420p'],
+                preset=preset,
+                ffmpeg_params=['-pix_fmt', 'yuv420p', '-movflags', '+faststart', '-threads', str(num_threads or 0)],
+                bitrate=None,
                 logger=None
             )
+        except Exception as e:
+            stop_progress.set()
+            if progress_thread.is_alive():
+                progress_thread.join(timeout=1.0)
+            raise RuntimeError(f"Failed to encode video: {e}")
         finally:
             stop_progress.set()
             if progress_thread.is_alive():
@@ -333,7 +352,13 @@ def images_to_video_with_moviepy(
             print(f"\rEncoding video: ✓ Completed | Elapsed: {_format_time(elapsed)}")
         
         encoding_time = time.time() - encoding_start
-        print(f"Video saved to: {output_path} (Total encoding time: {_format_time(encoding_time)})")
+        
+        if os.path.exists(output_path_abs):
+            file_size = os.path.getsize(output_path_abs) / (1024 * 1024)
+            print(f"Video saved to: {output_path_abs} (Total encoding time: {_format_time(encoding_time)})")
+            print(f"Output file size: {file_size:.2f} MB")
+        else:
+            raise RuntimeError(f"Video file was not created at {output_path_abs}. Encoding may have failed silently.")
     finally:
         final_clip.close()
         for clip in clips:
@@ -348,7 +373,9 @@ def images_to_video(
     target_size: tuple = None,
     backend: str = None,
     transition_duration: float = 0.5,
-    enable_transitions: bool = True
+    enable_transitions: bool = True,
+    fast_encode: bool = True,
+    num_threads: int = None
 ):
     """
     Convert multiple images to a single MP4 video.
@@ -364,6 +391,8 @@ def images_to_video(
                  Priority: moviepy > imageio > opencv
         transition_duration: Duration of transition between images in seconds
         enable_transitions: Whether to enable random transitions between images
+        fast_encode: Use faster encoding preset (ultrafast/veryfast) for speed
+        num_threads: Number of threads for parallel image processing (None = auto)
     """
     if backend is None:
         print("\nChecking available backends...")
@@ -410,7 +439,7 @@ def images_to_video(
             except ImportError:
                 from moviepy import ImageClip, concatenate_videoclips
             return images_to_video_with_moviepy(
-                image_paths, output_path, duration_per_image, fps, target_size, transition_duration, enable_transitions
+                image_paths, output_path, duration_per_image, fps, target_size, transition_duration, enable_transitions, fast_encode, num_threads
             )
         except ImportError as e:
             print(f"Warning: moviepy not available ({e}), trying other backends...")
@@ -435,7 +464,7 @@ def images_to_video(
         else:
             try:
                 return images_to_video_with_imageio(
-                    image_paths, output_path, duration_per_image, fps, target_size, transition_duration, enable_transitions
+                    image_paths, output_path, duration_per_image, fps, target_size, transition_duration, enable_transitions, fast_encode, num_threads
                 )
             except Exception as e:
                 print(f"Error using imageio: {e}")
@@ -491,6 +520,11 @@ def images_to_video(
             f"Please ensure OpenCV is properly installed with codec support."
         )
     
+    output_path_abs = os.path.abspath(output_path)
+    output_dir = os.path.dirname(output_path_abs)
+    if output_dir and not os.path.exists(output_dir):
+        os.makedirs(output_dir, exist_ok=True)
+    
     total_images = len(image_paths)
     processed_images = 0
     start_time = time.time()
@@ -510,35 +544,44 @@ def images_to_video(
                 continue
             
             if target_size is not None:
-                img = cv2.resize(img, (width, height))
+                img = cv2.resize(img, (width, height), interpolation=cv2.INTER_LINEAR)
             elif img.shape[:2] != (height, width):
-                img = cv2.resize(img, (width, height))
+                img = cv2.resize(img, (width, height), interpolation=cv2.INTER_LINEAR)
             
             if enable_transitions and prev_img is not None and idx > 1:
                 transition_type = _get_random_transition()
-                transition_frames = int(transition_duration * fps)
+                transition_frames = max(1, round(transition_duration * fps))
+                if fast_encode:
+                    transition_frames = max(1, transition_frames // 2)
                 
                 for frame_idx in range(transition_frames):
-                    progress = frame_idx / transition_frames
+                    progress = frame_idx / max(1, transition_frames - 1) if transition_frames > 1 else 1.0
+                    progress = min(1.0, max(0.0, progress))
                     transition_frame = _apply_transition(prev_img, img, transition_type, progress, width, height)
-                    out.write(transition_frame)
-                
-                actual_duration = max(0, duration - transition_duration)
-            else:
-                actual_duration = duration
+                    if not out.write(transition_frame):
+                        print(f"\nWarning: Failed to write transition frame {frame_idx} for image {idx}")
             
-            frames_for_image = int(actual_duration * fps)
+            frames_for_image = max(1, round(duration * fps))
             for _ in range(frames_for_image):
-                out.write(img)
+                if not out.write(img):
+                    print(f"\nWarning: Failed to write frame for image {idx}")
             
             prev_img = img
             processed_images += 1
             _print_progress(processed_images, total_images, start_time, "Encoding video")
         
-        print(f"\nVideo saved to: {output_path}")
+        output_path_abs = os.path.abspath(output_path)
+        
+        if os.path.exists(output_path_abs):
+            file_size = os.path.getsize(output_path_abs) / (1024 * 1024)
+            print(f"\nVideo saved to: {output_path_abs}")
+            print(f"Output file size: {file_size:.2f} MB")
+        else:
+            raise RuntimeError(f"Video file was not created at {output_path_abs}. Encoding may have failed.")
     
     finally:
-        out.release()
+        if out is not None and out.isOpened():
+            out.release()
 
 
 def images_to_video_with_imageio(
@@ -548,7 +591,9 @@ def images_to_video_with_imageio(
     fps: int = 30,
     target_size: tuple = None,
     transition_duration: float = 0.5,
-    enable_transitions: bool = True
+    enable_transitions: bool = True,
+    fast_encode: bool = True,
+    num_threads: int = None
 ):
     """
     Convert multiple images to MP4 video using imageio (better Windows compatibility).
@@ -561,6 +606,8 @@ def images_to_video_with_imageio(
         target_size: Target resolution (width, height)
         transition_duration: Duration of transition between images in seconds
         enable_transitions: Whether to enable random transitions between images
+        fast_encode: Use faster encoding preset for speed
+        num_threads: Number of threads for parallel image processing
     """
     print("=" * 60)
     print("Using backend: ImageIO")
@@ -607,28 +654,28 @@ def images_to_video_with_imageio(
             continue
         
         if target_size is not None:
-            img = cv2.resize(img, (width, height))
+            img = cv2.resize(img, (width, height), interpolation=cv2.INTER_LINEAR)
         elif img.shape[:2] != (height, width):
-            img = cv2.resize(img, (width, height))
+            img = cv2.resize(img, (width, height), interpolation=cv2.INTER_LINEAR)
+        
+        img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
         
         if enable_transitions and prev_img is not None and idx > 1:
             transition_type = _get_random_transition()
-            transition_frames = int(transition_duration * fps)
+            transition_frames = max(1, round(transition_duration * fps))
+            if fast_encode:
+                transition_frames = max(1, transition_frames // 2)
             
             for frame_idx in range(transition_frames):
-                progress = frame_idx / transition_frames
+                progress = frame_idx / max(1, transition_frames - 1) if transition_frames > 1 else 1.0
+                progress = min(1.0, max(0.0, progress))
                 transition_frame = _apply_transition(prev_img, img, transition_type, progress, width, height)
                 transition_frame_rgb = cv2.cvtColor(transition_frame, cv2.COLOR_BGR2RGB)
-                frames.append(transition_frame_rgb)
-            
-            actual_duration = max(0, duration - transition_duration)
-        else:
-            actual_duration = duration
+                frames.append(transition_frame_rgb.copy())
         
-        img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-        frames_for_image = int(actual_duration * fps)
+        frames_for_image = max(1, round(duration * fps))
         for _ in range(frames_for_image):
-            frames.append(img_rgb)
+            frames.append(img_rgb.copy())
         
         prev_img = img
         processed_images += 1
@@ -668,14 +715,31 @@ def images_to_video_with_imageio(
         progress_thread = threading.Thread(target=show_progress, daemon=True)
         progress_thread.start()
         
+        output_path_abs = os.path.abspath(output_path)
+        output_dir = os.path.dirname(output_path_abs)
+        if output_dir and not os.path.exists(output_dir):
+            os.makedirs(output_dir, exist_ok=True)
+        
         try:
+            ffmpeg_params = ['-pix_fmt', 'yuv420p', '-movflags', '+faststart']
+            if fast_encode:
+                ffmpeg_params.extend(['-preset', 'ultrafast'])
+            if num_threads:
+                ffmpeg_params.extend(['-threads', str(num_threads)])
+            
             imageio.mimwrite(
-                output_path, 
+                output_path_abs, 
                 frames, 
                 fps=fps, 
                 codec='libx264', 
-                quality=8
+                quality=8,
+                ffmpeg_params=ffmpeg_params
             )
+        except Exception as e:
+            stop_progress.set()
+            if progress_thread.is_alive():
+                progress_thread.join(timeout=1.0)
+            raise RuntimeError(f"Failed to encode video: {e}")
         finally:
             stop_progress.set()
             if progress_thread.is_alive():
@@ -684,7 +748,13 @@ def images_to_video_with_imageio(
             print(f"\rEncoding video: ✓ Completed | Elapsed: {_format_time(elapsed)}")
         
         encoding_time = time.time() - encoding_start
-        print(f"Video saved to: {output_path} (Total encoding time: {_format_time(encoding_time)})")
+        
+        if os.path.exists(output_path_abs):
+            file_size = os.path.getsize(output_path_abs) / (1024 * 1024)
+            print(f"Video saved to: {output_path_abs} (Total encoding time: {_format_time(encoding_time)})")
+            print(f"Output file size: {file_size:.2f} MB")
+        else:
+            raise RuntimeError(f"Video file was not created at {output_path_abs}. Encoding may have failed silently.")
     except Exception as e:
         error_msg = str(e)
         if 'ffmpeg' in error_msg.lower() or 'backend' in error_msg.lower():
@@ -704,7 +774,9 @@ def images_to_video_from_folder(
     image_extensions: tuple = ('.jpg', '.jpeg', '.png', '.bmp', '.tiff'),
     backend: str = None,
     transition_duration: float = 0.5,
-    enable_transitions: bool = True
+    enable_transitions: bool = True,
+    fast_encode: bool = True,
+    num_threads: int = None
 ):
     """
     Convert all images in a folder to a single MP4 video.
@@ -719,6 +791,8 @@ def images_to_video_from_folder(
         backend: Backend to use: 'moviepy', 'imageio', 'opencv', or None for auto-select
         transition_duration: Duration of transition between images in seconds
         enable_transitions: Whether to enable random transitions between images
+        fast_encode: Use faster encoding preset for speed
+        num_threads: Number of threads for parallel image processing
     """
     image_files = []
     for filename in sorted(os.listdir(folder_path)):
@@ -729,7 +803,7 @@ def images_to_video_from_folder(
         raise ValueError(f"No images found in folder: {folder_path}")
     
     print(f"Found {len(image_files)} images in folder")
-    images_to_video(image_files, output_path, duration_per_image, fps, target_size, backend, transition_duration, enable_transitions)
+    images_to_video(image_files, output_path, duration_per_image, fps, target_size, backend, transition_duration, enable_transitions, fast_encode, num_threads)
 
 
 if __name__ == "__main__":
@@ -754,6 +828,10 @@ if __name__ == "__main__":
                        help='Duration of transition between images in seconds (default: 0.5)')
     parser.add_argument('--no-transitions', action='store_true',
                        help='Disable transitions between images')
+    parser.add_argument('--fast', action='store_true',
+                       help='Use fast encoding mode (ultrafast preset, reduced transition frames)')
+    parser.add_argument('--threads', type=int, default=None,
+                       help='Number of threads for parallel processing (default: auto)')
     
     args = parser.parse_args()
     
@@ -772,6 +850,8 @@ if __name__ == "__main__":
         backend = 'opencv'
     
     enable_transitions = not args.no_transitions
+    fast_encode = args.fast
+    num_threads = args.threads
     
     if os.path.isdir(args.input):
         images_to_video_from_folder(
@@ -782,7 +862,9 @@ if __name__ == "__main__":
             target_size,
             backend=backend,
             transition_duration=args.transition_duration,
-            enable_transitions=enable_transitions
+            enable_transitions=enable_transitions,
+            fast_encode=fast_encode,
+            num_threads=num_threads
         )
     else:
         image_paths = [path.strip() for path in args.input.split(',')]
@@ -794,6 +876,8 @@ if __name__ == "__main__":
             target_size,
             backend,
             args.transition_duration,
-            enable_transitions
+            enable_transitions,
+            fast_encode,
+            num_threads
         )
 

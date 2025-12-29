@@ -292,6 +292,9 @@ def images_to_video_with_moviepy(
             
             img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
             
+            clip = ImageClip(img_rgb, duration=duration)
+            clips.append(clip)
+            
             if enable_transitions and prev_img is not None and idx > 1:
                 transition_type = _get_random_transition()
                 transition_frames = max(1, round(transition_duration * fps))
@@ -315,9 +318,6 @@ def images_to_video_with_moviepy(
                 if transition_clips:
                     transition_clip = concatenate_videoclips(transition_clips, method="compose")
                     clips.append(transition_clip)
-            
-            clip = ImageClip(img_rgb, duration=duration)
-            clips.append(clip)
             
             prev_img = img
             processed_images += 1
@@ -367,7 +367,7 @@ def images_to_video_with_moviepy(
         
         try:
             preset = 'ultrafast' if fast_encode else 'medium'
-            keyframe_interval = fps * 2
+            keyframe_interval = fps
             ffmpeg_params = [
                 '-pix_fmt', 'yuv420p',
                 '-movflags', '+faststart',
@@ -375,6 +375,8 @@ def images_to_video_with_moviepy(
                 '-keyint_min', str(keyframe_interval),
                 '-profile:v', 'baseline',
                 '-level', '3.0',
+                '-tune', 'stillimage',
+                '-crf', '23',
                 '-threads', str(num_threads or 0)
             ]
             final_clip.write_videofile(
@@ -596,6 +598,11 @@ def images_to_video(
             elif img.shape[:2] != (height, width):
                 img = _resize_with_aspect_ratio(img, width, height, keep_aspect=True)
             
+            frames_for_image = max(1, round(duration * fps))
+            for _ in range(frames_for_image):
+                if not out.write(img):
+                    print(f"\nWarning: Failed to write frame for image {idx}")
+            
             if enable_transitions and prev_img is not None and idx > 1:
                 transition_type = _get_random_transition()
                 transition_frames = max(1, round(transition_duration * fps))
@@ -608,11 +615,6 @@ def images_to_video(
                     transition_frame = _apply_transition(prev_img, img, transition_type, progress, width, height)
                     if not out.write(transition_frame):
                         print(f"\nWarning: Failed to write transition frame {frame_idx} for image {idx}")
-            
-            frames_for_image = max(1, round(duration * fps))
-            for _ in range(frames_for_image):
-                if not out.write(img):
-                    print(f"\nWarning: Failed to write frame for image {idx}")
             
             prev_img = img
             processed_images += 1
@@ -708,6 +710,10 @@ def images_to_video_with_imageio(
         
         img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
         
+        frames_for_image = max(1, round(duration * fps))
+        for _ in range(frames_for_image):
+            frames.append(img_rgb.copy())
+        
         if enable_transitions and prev_img is not None and idx > 1:
             transition_type = _get_random_transition()
             transition_frames = max(1, round(transition_duration * fps))
@@ -720,10 +726,6 @@ def images_to_video_with_imageio(
                 transition_frame = _apply_transition(prev_img, img, transition_type, progress, width, height)
                 transition_frame_rgb = cv2.cvtColor(transition_frame, cv2.COLOR_BGR2RGB)
                 frames.append(transition_frame_rgb.copy())
-        
-        frames_for_image = max(1, round(duration * fps))
-        for _ in range(frames_for_image):
-            frames.append(img_rgb.copy())
         
         prev_img = img
         processed_images += 1
@@ -769,14 +771,16 @@ def images_to_video_with_imageio(
             os.makedirs(output_dir, exist_ok=True)
         
         try:
-            keyframe_interval = fps * 2
+            keyframe_interval = fps
             ffmpeg_params = [
                 '-pix_fmt', 'yuv420p',
                 '-movflags', '+faststart',
                 '-g', str(keyframe_interval),
                 '-keyint_min', str(keyframe_interval),
                 '-profile:v', 'baseline',
-                '-level', '3.0'
+                '-level', '3.0',
+                '-tune', 'stillimage',
+                '-crf', '23'
             ]
             if fast_encode:
                 ffmpeg_params.extend(['-preset', 'ultrafast'])

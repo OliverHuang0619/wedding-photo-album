@@ -1,0 +1,85 @@
+diff --git a/img_to_video.py b/img_to_video.py
+index e83256b..169e80f 100644
+--- a/img_to_video.py
++++ b/img_to_video.py
+@@ -153,6 +153,44 @@ def _get_random_transition() -> str:
+     return random.choice(transitions)
+ 
+ 
++def _resize_with_aspect_ratio(img: np.ndarray, target_width: int, target_height: int, keep_aspect: bool = True) -> np.ndarray:
++    """
++    Resize image while maintaining aspect ratio, adding black borders if needed.
++    
++    Args:
++        img: Input image (BGR format)
++        target_width: Target width
++        target_height: Target height
++        keep_aspect: If True, maintain aspect ratio and add black borders. If False, stretch to fit.
++    
++    Returns:
++        Resized image with same aspect ratio, padded with black borders if needed
++    """
++    if not keep_aspect:
++        return cv2.resize(img, (target_width, target_height), interpolation=cv2.INTER_LINEAR)
++    
++    img_height, img_width = img.shape[:2]
++    img_aspect = img_width / img_height
++    target_aspect = target_width / target_height
++    
++    if img_aspect > target_aspect:
++        new_width = target_width
++        new_height = int(target_width / img_aspect)
++        resized = cv2.resize(img, (new_width, new_height), interpolation=cv2.INTER_LINEAR)
++        top_pad = (target_height - new_height) // 2
++        bottom_pad = target_height - new_height - top_pad
++        result = cv2.copyMakeBorder(resized, top_pad, bottom_pad, 0, 0, cv2.BORDER_CONSTANT, value=[0, 0, 0])
++    else:
++        new_height = target_height
++        new_width = int(target_height * img_aspect)
++        resized = cv2.resize(img, (new_width, new_height), interpolation=cv2.INTER_LINEAR)
++        left_pad = (target_width - new_width) // 2
++        right_pad = target_width - new_width - left_pad
++        result = cv2.copyMakeBorder(resized, 0, 0, left_pad, right_pad, cv2.BORDER_CONSTANT, value=[0, 0, 0])
++    
++    return result
++
++
+ def _print_progress(current: int, total: int, start_time: float, stage: str = "Processing") -> None:
+     if total <= 0:
+         return
+@@ -248,9 +286,9 @@ def images_to_video_with_moviepy(
+                 continue
+             
+             if target_size is not None:
+-                img = cv2.resize(img, (width, height), interpolation=cv2.INTER_LINEAR)
++                img = _resize_with_aspect_ratio(img, width, height, keep_aspect=True)
+             elif img.shape[:2] != (height, width):
+-                img = cv2.resize(img, (width, height), interpolation=cv2.INTER_LINEAR)
++                img = _resize_with_aspect_ratio(img, width, height, keep_aspect=True)
+             
+             img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+             
+@@ -554,9 +592,9 @@ def images_to_video(
+                 continue
+             
+             if target_size is not None:
+-                img = cv2.resize(img, (width, height), interpolation=cv2.INTER_LINEAR)
++                img = _resize_with_aspect_ratio(img, width, height, keep_aspect=True)
+             elif img.shape[:2] != (height, width):
+-                img = cv2.resize(img, (width, height), interpolation=cv2.INTER_LINEAR)
++                img = _resize_with_aspect_ratio(img, width, height, keep_aspect=True)
+             
+             if enable_transitions and prev_img is not None and idx > 1:
+                 transition_type = _get_random_transition()
+@@ -664,9 +702,9 @@ def images_to_video_with_imageio(
+             continue
+         
+         if target_size is not None:
+-            img = cv2.resize(img, (width, height), interpolation=cv2.INTER_LINEAR)
++            img = _resize_with_aspect_ratio(img, width, height, keep_aspect=True)
+         elif img.shape[:2] != (height, width):
+-            img = cv2.resize(img, (width, height), interpolation=cv2.INTER_LINEAR)
++            img = _resize_with_aspect_ratio(img, width, height, keep_aspect=True)
+         
+         img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+         
